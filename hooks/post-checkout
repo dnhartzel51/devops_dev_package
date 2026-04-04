@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# post-checkout hook
+# Automatically creates a changelog template when a new branch is created.
+#
+# Arguments provided by git:
+#   $1 = ref of previous HEAD
+#   $2 = ref of new HEAD
+#   $3 = flag: 1 = branch checkout, 0 = file checkout
+
+PREV_REF="$1"
+NEW_REF="$2"
+BRANCH_FLAG="$3"
+
+# Only act on branch checkouts, not file checkouts
+if [ "$BRANCH_FLAG" != "1" ]; then
+    exit 0
+fi
+
+BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# Skip protected branches
+if [[ "$BRANCH_NAME" =~ ^(main|master|develop|dev|staging|production|release)$ ]]; then
+    exit 0
+fi
+
+# Detect if this is a brand-new branch (reflog has exactly 1 entry)
+REFLOG_COUNT=$(git reflog show "$BRANCH_NAME" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$REFLOG_COUNT" -gt 1 ]; then
+    exit 0
+fi
+
+# Set up paths
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CHANGELOG_DIR="$REPO_ROOT/changelogs/unreleased"
+TEMPLATE="$REPO_ROOT/changelogs/template.md"
+
+# Sanitize branch name for filename (replace / with --)
+SAFE_NAME=$(echo "$BRANCH_NAME" | sed 's|/|--|g')
+TARGET="$CHANGELOG_DIR/${SAFE_NAME}.md"
+
+# Don't overwrite if it already exists
+if [ -f "$TARGET" ]; then
+    exit 0
+fi
+
+mkdir -p "$CHANGELOG_DIR"
+
+AUTHOR=$(git config user.name)
+DATE=$(date +%Y-%m-%d)
+
+if [ -f "$TEMPLATE" ]; then
+    sed -e "s|{branch_name}|$BRANCH_NAME|g" \
+        -e "s|{author}|$AUTHOR|g" \
+        -e "s|{date}|$DATE|g" \
+        "$TEMPLATE" > "$TARGET"
+else
+    # Fallback inline template
+    cat > "$TARGET" <<TMPL
+# Changelog: $BRANCH_NAME
+> **Author:** $AUTHOR
+> **Date created:** $DATE
+> **Jira/Ticket:** [Link here]
+
+## Added
+-
+
+## Changed
+-
+
+## Fixed
+-
+
+## Deployment Steps
+- [ ]
+
+## Testing Plan
+- [ ]
+
+## Notes
+-
+TMPL
+fi
+
+echo ">>> Changelog created: changelogs/unreleased/${SAFE_NAME}.md"
