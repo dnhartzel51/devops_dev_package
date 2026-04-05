@@ -31,8 +31,8 @@ fi
 
 # Set up paths
 REPO_ROOT=$(git rev-parse --show-toplevel)
-CHANGELOG_DIR="$REPO_ROOT/changelogs/unreleased"
-TEMPLATE="$REPO_ROOT/changelogs/template.md"
+CHANGELOG_DIR="$REPO_ROOT/release/unreleased"
+TEMPLATE="$REPO_ROOT/release/template.md"
 
 # Sanitize branch name for filename (replace / with --)
 SAFE_NAME=$(echo "$BRANCH_NAME" | sed 's|/|--|g')
@@ -48,10 +48,14 @@ mkdir -p "$CHANGELOG_DIR"
 AUTHOR=$(git config user.name)
 DATE=$(date +%Y-%m-%d)
 
+# Extract work item number from branch name (expects format: 1234_descriptive_name)
+WORK_ITEM=$(echo "$BRANCH_NAME" | sed -n 's|^\([0-9]*\)_.*|\1|p')
+
 if [ -f "$TEMPLATE" ]; then
     sed -e "s|{branch_name}|$BRANCH_NAME|g" \
         -e "s|{author}|$AUTHOR|g" \
         -e "s|{date}|$DATE|g" \
+        -e "s|{work_item}|$WORK_ITEM|g" \
         "$TEMPLATE" > "$TARGET"
 else
     # Fallback inline template
@@ -81,4 +85,4 @@ else
 TMPL
 fi
 
-echo ">>> Changelog created: changelogs/unreleased/${SAFE_NAME}.md"
+echo ">>> Changelog created: release/unreleased/${SAFE_NAME}.md"

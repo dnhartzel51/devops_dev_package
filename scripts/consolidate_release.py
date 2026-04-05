@@ -12,14 +12,14 @@ Usage:
 import argparse
 import datetime
 import re
+import shutil
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-UNRELEASED_DIR = REPO_ROOT / "changelogs" / "unreleased"
-RELEASES_DIR = REPO_ROOT / "releases"
+UNRELEASED_DIR = REPO_ROOT / "release" / "unreleased"
 CHANGELOG_FILE = REPO_ROOT / "CHANGELOG.md"
 
-# Sections in display order
+# Sections included in the consolidated release (excludes Deployment Steps & Testing Plan)
 SECTIONS = [
     "Added",
     "Changed",
@@ -28,8 +28,6 @@ SECTIONS = [
     "Removed",
     "Security",
     "Breaking Changes",
-    "Deployment Steps",
-    "Testing Plan",
     "Notes",
 ]
 
@@ -43,7 +41,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def discover_changelogs() -> list[Path]:
-    """Return all .md files in unreleased/, excluding .gitkeep."""
+    """Return all .md files in release/unreleased/, excluding .gitkeep."""
     if not UNRELEASED_DIR.exists():
         return []
     return sorted(
@@ -81,7 +79,7 @@ def parse_changelog(path: Path) -> dict:
             item_match = re.match(r"^-\s+\[?[xX ]?\]?\s*(.+)$", line)
             if item_match:
                 content = item_match.group(1).strip()
-                if content:  # skip empty placeholder bullets
+                if content and content.upper() != "N/A":  # skip empty or N/A bullets
                     sections[current_section].append(line.strip())
 
     return {"metadata": metadata, "sections": sections}
@@ -105,7 +103,7 @@ def merge_changelogs(parsed_list: list[tuple[str, dict]]) -> dict[str, list[str]
 
 
 def render_release(version_label: str, release_date: str, merged: dict[str, list[str]]) -> str:
-    """Render the consolidated release as markdown."""
+    """Render the consolidated release as markdown (excludes Deployment Steps & Testing Plan)."""
     lines = [
         f"# Release: {version_label}",
         f"**Date:** {release_date}",
@@ -124,13 +122,21 @@ def render_release(version_label: str, release_date: str, merged: dict[str, list
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_release_file(version_label: str, content: str) -> Path:
-    """Write the release to releases/<label>.md."""
-    RELEASES_DIR.mkdir(parents=True, exist_ok=True)
+def write_release_folder(version_label: str, content: str, source_files: list[Path]) -> Path:
+    """Create release/<version>/ folder with the consolidated .md and move source changelogs into it."""
     safe_label = version_label.replace("/", "-").replace(" ", "-")
-    release_path = RELEASES_DIR / f"release_{safe_label}.md"
+    release_dir = REPO_ROOT / "release" / safe_label
+    release_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write consolidated release notes
+    release_path = release_dir / f"release_{safe_label}.md"
     release_path.write_text(content, encoding="utf-8")
-    return release_path
+
+    # Move individual PR changelogs into the release folder for reference
+    for f in source_files:
+        shutil.move(str(f), str(release_dir / f.name))
+
+    return release_dir
 
 
 def update_running_changelog(content: str):
@@ -158,12 +164,6 @@ def update_running_changelog(content: str):
     CHANGELOG_FILE.write_text(new_content, encoding="utf-8")
 
 
-def cleanup_unreleased(files: list[Path]):
-    """Delete consolidated changelog files, preserving .gitkeep."""
-    for f in files:
-        f.unlink()
-
-
 def main():
     args = parse_args()
 
@@ -189,13 +189,13 @@ def main():
         print(content)
         return
 
-    release_path = write_release_file(version_label, content)
+    release_dir = write_release_folder(version_label, content, files)
     update_running_changelog(content)
-    cleanup_unreleased(files)
 
-    print(f"\nRelease consolidated: {release_path.relative_to(REPO_ROOT)}")
+    print(f"\nRelease folder created: {release_dir.relative_to(REPO_ROOT)}/")
+    print(f"  - Consolidated release notes + individual PR changelogs moved there.")
+    print(f"  - Add any deployment/testing files or notebooks to this folder.")
     print(f"CHANGELOG.md updated.")
-    print(f"Cleaned up {len(files)} unreleased changelog(s).")
 
 
 if __name__ == "__main__":

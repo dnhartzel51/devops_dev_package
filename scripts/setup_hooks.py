@@ -28,8 +28,7 @@ def install_hooks():
         installed += 1
 
     # Ensure required directories exist
-    (REPO_ROOT / "changelogs" / "unreleased").mkdir(parents=True, exist_ok=True)
-    (REPO_ROOT / "releases").mkdir(parents=True, exist_ok=True)
+    (REPO_ROOT / "release" / "unreleased").mkdir(parents=True, exist_ok=True)
 
     print(f"\n{installed} hook(s) installed successfully.")
     print("Test it: git checkout -b test/verify-hook")
