@@ -7,7 +7,6 @@ A quick-reference for migrating SQL Server T-SQL to Snowflake using dbt. Each se
 **Key resources:**
 - [dbt Jinja Functions](https://docs.getdbt.com/reference/dbt-jinja-functions)
 - [dbt_utils package](https://github.com/dbt-labs/dbt-utils)
-- [dbt_date package](https://github.com/calogica/dbt-date)
 - [Snowflake SQL Reference](https://docs.snowflake.com/en/sql-reference-functions)
 
 ---
