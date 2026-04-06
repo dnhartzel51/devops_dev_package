@@ -180,8 +180,8 @@ col ILIKE '%test%'
 | `CAST(col AS FLOAT)` | `CAST(col AS {{ dbt.type_float() }})` | `col::FLOAT` |
 | `CONVERT(INT, col)` | same as CAST | `col::INT` |
 | `CONVERT(VARCHAR, col, style)` | -- | `TO_CHAR(col, format)` (see date styles above) |
-| `TRY_CAST(col AS INT)` | -- | `TRY_CAST(col AS INT)` |
-| `TRY_CONVERT(INT, col)` | -- | `TRY_CAST(col AS INT)` |
+| `TRY_CAST(col AS INT)` | `{{ dbt.safe_cast('col', dbt.type_int()) }}` | `TRY_CAST(col AS INT)` |
+| `TRY_CONVERT(INT, col)` | `{{ dbt.safe_cast('col', dbt.type_int()) }}` | `TRY_CAST(col AS INT)` |
 | `ISNULL(col, default)` | -- | `NVL(col, default)` or `COALESCE(col, default)` |
 | `COALESCE(a, b, c)` | -- | `COALESCE(a, b, c)` |
 | `NULLIF(a, b)` | -- | `NULLIF(a, b)` |
@@ -207,6 +207,9 @@ FROM {{ source('raw', 'orders') }}
 -- SQL Server
 SELECT TRY_CONVERT(INT, user_input) AS safe_val
 
+-- dbt (preferred — returns NULL instead of erroring on bad input)
+SELECT {{ dbt.safe_cast('user_input', dbt.type_int()) }} AS safe_val
+
 -- Snowflake
 SELECT TRY_CAST(user_input AS INT) AS safe_val
 
@@ -214,7 +217,10 @@ SELECT TRY_CAST(user_input AS INT) AS safe_val
 -- SQL Server
 SELECT TRY_CONVERT(DATE, date_string, 101)
 
--- Snowflake
+-- dbt (preferred)
+SELECT {{ dbt.safe_cast('date_string', dbt.type_timestamp()) }} AS safe_val
+
+-- Snowflake (with format string — more precise for known formats)
 SELECT TRY_TO_DATE(date_string, 'MM/DD/YYYY')
 ```
 
