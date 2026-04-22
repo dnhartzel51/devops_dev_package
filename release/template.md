@@ -35,11 +35,11 @@
 
 ## Deployment Steps
 <!-- Ordered steps required to deploy this change (e.g. run seeds, full-refresh, grant permissions). -->
-- [ ] 
+- N/A
 
 ## Testing Plan
 <!-- How this change should be validated — dbt tests, row counts, spot checks, UAT, etc. -->
-- [ ] 
+- N/A
 
 ## Notes
 <!-- Any additional context, caveats, follow-up work, or things reviewers should know. -->

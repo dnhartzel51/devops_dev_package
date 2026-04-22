@@ -114,13 +114,18 @@ def merge_changelogs(parsed_list: list[tuple[str, dict]]) -> dict[str, list[str]
     return merged
 
 
+CHECKBOX_SECTIONS = {"Deployment Steps", "Testing Plan"}
+
+
 def render_section_lines(section: str, branch_groups: list[tuple[str, list[str]]]) -> list[str]:
     """Render a single section with branch names as top-level bullets and items as sub-bullets."""
+    use_checkboxes = section in CHECKBOX_SECTIONS
     lines = [f"## {section}"]
     for branch_name, items in branch_groups:
         lines.append(f"- [{branch_name}]")
         for item in items:
-            lines.append(f"    - {item}")
+            prefix = "    - [ ] " if use_checkboxes else "    - "
+            lines.append(f"{prefix}{item}")
     lines.append("")
     return lines
 
