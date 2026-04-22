@@ -19,8 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 UNRELEASED_DIR = REPO_ROOT / "release" / "unreleased"
 CHANGELOG_FILE = REPO_ROOT / "CHANGELOG.md"
 
-# Sections included in the consolidated release (excludes Deployment Steps & Testing Plan)
-SECTIONS = [
+# All sections in display order — all appear in the release .md
+ALL_SECTIONS = [
     "Added",
     "Changed",
     "Fixed",
@@ -28,7 +28,20 @@ SECTIONS = [
     "Removed",
     "Security",
     "Breaking Changes",
+    "Deployment Steps",
+    "Testing Plan",
     "Notes",
+]
+
+# Sections that get copied to CHANGELOG.md (everything up through Breaking Changes)
+CHANGELOG_SECTIONS = [
+    "Added",
+    "Changed",
+    "Fixed",
+    "Deprecated",
+    "Removed",
+    "Security",
+    "Breaking Changes",
 ]
 
 
@@ -74,20 +87,21 @@ def parse_changelog(path: Path) -> dict:
                 sections[current_section] = []
             continue
 
-        # Collect bullet items under current section
+        # Collect bullet items under current section (accept -, +, or * bullets)
         if current_section:
-            item_match = re.match(r"^-\s+\[?[xX ]?\]?\s*(.+)$", line)
+            item_match = re.match(r"^[-+*]\s+\[?[xX ]?\]?\s*(.+)$", line)
             if item_match:
                 content = item_match.group(1).strip()
                 if content and content.upper() != "N/A":  # skip empty or N/A bullets
-                    sections[current_section].append(line.strip())
+                    # Normalize to consistent content (strip the original bullet)
+                    sections[current_section].append(content)
 
     return {"metadata": metadata, "sections": sections}
 
 
 def merge_changelogs(parsed_list: list[tuple[str, dict]]) -> dict[str, list[str]]:
-    """Merge multiple parsed changelogs, annotating items with their source branch."""
-    merged: dict[str, list[str]] = {}
+    """Merge multiple parsed changelogs, grouping items under each branch name."""
+    merged: dict[str, list[tuple[str, list[str]]]] = {}
 
     for branch_name, parsed in parsed_list:
         for section, items in parsed["sections"].items():
@@ -95,29 +109,52 @@ def merge_changelogs(parsed_list: list[tuple[str, dict]]) -> dict[str, list[str]
                 continue
             if section not in merged:
                 merged[section] = []
-            for item in items:
-                # Prefix with branch name for traceability
-                merged[section].append(f"- ({branch_name}) {item.lstrip('- ')}")
+            merged[section].append((branch_name, items))
 
     return merged
 
 
-def render_release(version_label: str, release_date: str, merged: dict[str, list[str]]) -> str:
-    """Render the consolidated release as markdown (excludes Deployment Steps & Testing Plan)."""
+def render_section_lines(section: str, branch_groups: list[tuple[str, list[str]]]) -> list[str]:
+    """Render a single section with branch names as top-level bullets and items as sub-bullets."""
+    lines = [f"## {section}"]
+    for branch_name, items in branch_groups:
+        lines.append(f"- [{branch_name}]")
+        for item in items:
+            lines.append(f"    - {item}")
+    lines.append("")
+    return lines
+
+
+def render_release(version_label: str, release_date: str, merged: dict) -> str:
+    """Render the full consolidated release as markdown (all sections)."""
     lines = [
         f"# Release: {version_label}",
         f"**Date:** {release_date}",
         "",
     ]
 
-    for section in SECTIONS:
-        items = merged.get(section, [])
-        if not items:
+    for section in ALL_SECTIONS:
+        branch_groups = merged.get(section, [])
+        if not branch_groups:
             continue
-        lines.append(f"## {section}")
-        for item in items:
-            lines.append(item)
-        lines.append("")
+        lines.extend(render_section_lines(section, branch_groups))
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_changelog_entry(version_label: str, release_date: str, merged: dict) -> str:
+    """Render the changelog entry (only sections through Breaking Changes)."""
+    lines = [
+        f"# Release: {version_label}",
+        f"**Date:** {release_date}",
+        "",
+    ]
+
+    for section in CHANGELOG_SECTIONS:
+        branch_groups = merged.get(section, [])
+        if not branch_groups:
+            continue
+        lines.extend(render_section_lines(section, branch_groups))
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -182,20 +219,23 @@ def main():
     release_date = args.date or datetime.date.today().isoformat()
     version_label = args.version or release_date
 
-    content = render_release(version_label, release_date, merged)
+    release_content = render_release(version_label, release_date, merged)
+    changelog_content = render_changelog_entry(version_label, release_date, merged)
 
     if args.dry_run:
-        print("\n--- DRY RUN: Release preview ---\n")
-        print(content)
+        print("\n--- DRY RUN: Release .md preview ---\n")
+        print(release_content)
+        print("\n--- DRY RUN: CHANGELOG.md preview ---\n")
+        print(changelog_content)
         return
 
-    release_dir = write_release_folder(version_label, content, files)
-    update_running_changelog(content)
+    release_dir = write_release_folder(version_label, release_content, files)
+    update_running_changelog(changelog_content)
 
     print(f"\nRelease folder created: {release_dir.relative_to(REPO_ROOT)}/")
     print(f"  - Consolidated release notes + individual PR changelogs moved there.")
     print(f"  - Add any deployment/testing files or notebooks to this folder.")
-    print(f"CHANGELOG.md updated.")
+    print(f"CHANGELOG.md updated (sections through Breaking Changes only).")
 
 
 if __name__ == "__main__":
